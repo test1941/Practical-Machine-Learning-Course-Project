@@ -1,0 +1,105 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Orhun Akbulut"
+date: "01 07 2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(randomForest)
+
+```
+
+This is the project of the Coursera course Practical Machine Learning. 
+
+# Project Description
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The data consists of a Training data and a Test data (to be used to validate the selected model).
+
+The goal of your project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set. You may use any of the other variables to predict with.
+
+Note: The dataset used in this project is a courtesy of “Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers’ Data Classification of Body Postures and Movements” 
+
+# Getting and Cleaning the Data
+
+* We first set the seed and load the data.
+
+```{r part1, cache=T}
+set.seed(123321)
+trainingRaw<-read.csv("pml-training.csv")
+testingRaw<-read.csv("pml-testing.csv")
+```
+
+* Next, we do the data cleaning part. Firstly, we get rid of the first seven columns as they do not contribute to the prediction of the classe variable. Secondly, we eliminate the features that include NA's as the machine learning algorithms are not suited to handle missing data.
+
+```{r part2, cache=T}
+trainingRaw<-trainingRaw[,-(1:7)]
+testingRaw<-testingRaw[,-(1:7)]
+trainingRaw<- trainingRaw[, colSums(is.na(trainingRaw)) == 0]
+testingRaw<- testingRaw[, colSums(is.na(testingRaw)) == 0]
+```
+
+* Then, we divide the training data into two separate parts, one for training the algorithms and other one to test the algorithms' performance, called validation. Note that the initial testing data loaded is used in the final stage of the project.
+
+```{r part3, cache=T}
+inTrain <- createDataPartition(trainingRaw$classe, p = 0.7, list = F)
+training <- trainingRaw[inTrain, ]
+validation <- trainingRaw[-inTrain, ]
+```
+
+* Finally, we eliminate the near zero variables, namely the variables which have almost no variation and would not contribute to the explaining of the classe variable.  
+
+```{r part4, cache=T}
+nzvcols <- nearZeroVar(training)
+training <- training[,-nzvcols]
+validation <- validation[,-nzvcols]
+```
+
+# Model Building and Prediction
+
+* We build two models, one is based on the random forest algorithm and the other is based on the gradient boosting algorithm, as they are both robust to correlation between variables and could handle a large number of predictor variables.
+
+## Random Forest Model
+
+We use 5-fold cross validation technique for the random forest algorithm. After fitting the model, we predict using the validation data frame we created from the raw training dataset downloaded for the project and report the accuracy with other relevant information using confusion matrix.
+
+```{r part5, cache=T}
+control<-trainControl(method = "cv",number = 5,verboseIter = F)
+mod1<-train(classe~.,method="rf",data=training,trControl=control)
+pred1<-predict(mod1,validation)
+confusionMatrix(pred1,validation$classe)
+```
+
+We see that we get a pretty solid accuracy of about 99.24% for this model.
+
+## Gradient Boosting Model
+
+We use repeated 5-fold cross validation technique for the gradient boosting algorithm. After fitting the model, we predict using the validation data frame we created from the raw training dataset downloaded for the project and report the accuracy with other relevant information using confusion matrix.
+
+```{r part6, cache=T}
+control2 <- trainControl(method = "repeatedcv", number = 5, verboseIter = F,repeats=1)
+mod2<-train(classe~.,method="gbm",data=training,trControl=control2,verbose=F)
+pred2<-predict(mod2,validation)
+confusionMatrix(pred2,validation$classe)
+```
+
+We observe that although we again get a very good accuracy of about 95.96%, the random forest model performs better even only by a slight margin. 
+
+## Prediction
+
+Thus, for the final testing of the original testing data of 20 observations, we predict using the random forest model, as the results of the prediction is given below.
+
+```{r part7, cache=T}
+finalpred<-predict(mod1,testingRaw)
+finalpred
+```
